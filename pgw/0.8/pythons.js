@@ -1311,7 +1311,10 @@ window.cross_track = async function cross_track(trackid, url, flags) {
     const track = MM[trackid]
 
     // concatenate chunks into single Uint8Array
-    track.data = new Uint8Array(len);
+    // PATCH(served-mirror): Content-Length may reflect the gzip-compressed body
+        // while the reader delivers decompressed bytes. Allocate headroom and
+        // grow as needed so the download cannot fail on a CL/body mismatch.
+        track.data = new Uint8Array(len > 0 ? len * 2 : 1 << 20);
     track.pos = 0
     track.len = len
 
@@ -1325,6 +1328,11 @@ window.cross_track = async function cross_track(trackid, url, flags) {
             break
         }
         try {
+            if (track.pos + value.length > track.data.length) {
+                const grown = new Uint8Array(Math.max(track.data.length * 2, track.pos + value.length))
+                grown.set(track.data.subarray(0, track.pos))
+                track.data = grown
+            }
             track.data.set(value, track.pos)
         } catch (x) {
             track.pos = -1
@@ -1335,7 +1343,7 @@ window.cross_track = async function cross_track(trackid, url, flags) {
 
     console.log(`${trackid}:${url} Received ${track.pos} of ${track.len} to ${track.path}`)
     if (track.type === "fs" ) {
-        FS.writeFile(track.path, track.data)
+        if (track.pos > 0) { FS.writeFile(track.path, track.data.subarray(0, track.pos)) }
     }
 
 }
