@@ -1341,6 +1341,12 @@ window.cross_track = async function cross_track(trackid, url, flags) {
         track.pos += value.length
     }
 
+    // PATCH(served-mirror): trim the oversized buffer to the bytes actually
+    // received, so mount/zip consumers do not see zero padding.
+    if (track.pos > 0 && track.data.length !== track.pos) {
+        track.data = track.data.subarray(0, track.pos)
+    }
+
     console.log(`${trackid}:${url} Received ${track.pos} of ${track.len} to ${track.path}`)
     if (track.type === "fs" ) {
         if (track.pos > 0) { FS.writeFile(track.path, track.data.subarray(0, track.pos)) }
